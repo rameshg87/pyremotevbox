@@ -19,6 +19,11 @@ from VirtualBox_client import IMachine_getBootOrderRequestMsg
 from VirtualBox_client import IMachine_setBootOrderRequestMsg
 from VirtualBox_client import ISession_getMachineRequestMsg
 from VirtualBox_client import IMachine_saveSettingsRequestMsg
+from VirtualBox_client import IMachine_attachDeviceRequestMsg
+from VirtualBox_client import IMachine_detachDeviceRequestMsg
+from VirtualBox_client import IVirtualBox_openMediumRequestMsg
+from VirtualBox_client import IMachine_getFirmwareTypeRequestMsg
+from VirtualBox_client import IMachine_setFirmwareTypeRequestMsg
 
 
 STATE_POWERED_OFF = 'PoweredOff'
@@ -32,6 +37,17 @@ DEVICE_DISK = 'HardDisk'
 
 LOCKTYPE_SHARED = 1
 LOCKTYPE_WRITE = 2
+
+ACCESS_READONLY = 1
+ACCESS_READWRITE = 2
+
+FIRMWARE_BIOS = 'BIOS'
+FIRMWARE_EFI = 'EFI'
+
+DEVICE_TO_CONTROLLER_MAP = {
+                            DEVICE_FLOPPY: 'Floppy',
+                            DEVICE_CDROM: 'IDE'
+                           }
 
 
 class VirtualBoxHost:
@@ -83,6 +99,18 @@ class VirtualBoxHost:
         val = self.run_command('IVirtualBox_findMachine', req)
         return VirtualBoxVm(self, val._returnval)
 
+    def _open_medium(self, device_type, location):
+
+        req = IVirtualBox_openMediumRequestMsg()
+        req._this = self.handle
+        req._location = location
+        req._deviceType = device_type
+        req._accessMode = ACCESS_READONLY
+        req._forceNewUuid = False
+
+        val = self.run_command('IVirtualBox_openMedium', req)
+        return val._returnval
+
 
 class VirtualBoxVm:
 
@@ -90,6 +118,7 @@ class VirtualBoxVm:
 
         self.host = virtualboxhost
         self.handle = handle
+
 
     def get_power_status(self):
 
@@ -112,27 +141,113 @@ class VirtualBoxVm:
         return val._returnval
 
 
-    def set_boot_device(self, device, position=1):
+    def _get_session_id(self):
 
-        # Get session
         req = IWebsessionManager_getSessionObjectRequestMsg()
         req._this = None
         req._refIVirtualBox = self.host.handle
         val = self.host.run_command('IWebsessionManager_getSessionObject', req)
         session_id = val._returnval
+        return session_id
 
-        # Lock machine
+
+    def _lock_machine(self, session_id, lock_type=LOCKTYPE_SHARED):
+
         req = IMachine_lockMachineRequestMsg()
         req._this = self.handle
         req._session = session_id
-        req._lockType = LOCKTYPE_WRITE # Write
+        req._lockType = lock_type
         val = self.host.run_command('IMachine_lockMachine', req)
+
+
+    def _get_mutable_machine(self, session_id):
+
+        # Lock machine
+        self._lock_machine(session_id, LOCKTYPE_WRITE)
 
         # Get mutable machine
         req = ISession_getMachineRequestMsg()
         req._this = session_id
         val = self.host.run_command('ISession_getMachine', req)
         mutable_machine_id = val._returnval
+        return mutable_machine_id
+
+
+    def _save_settings(self, mutable_machine_id):
+
+        req = IMachine_saveSettingsRequestMsg()
+        req._this = mutable_machine_id
+        val = self.host.run_command('IMachine_saveSettings', req)
+
+
+    def _unlock_machine(self, session_id):
+
+        req = ISession_unlockMachineRequestMsg()
+        req._this = session_id
+        val = self.host.run_command('ISession_unlockMachine', req)
+
+
+    def attach_device(self, device_type, location):
+
+        try:
+            self.detach_device(device_type)
+        except Exception:
+            pass
+
+        # Get mutable machine
+        session_id = self._get_session_id()
+
+        controller_name = DEVICE_TO_CONTROLLER_MAP[device_type]
+        medium_id = self.host._open_medium(device_type, location)
+
+        mutable_machine_id = self._get_mutable_machine(session_id)
+        try:
+            req = IMachine_attachDeviceRequestMsg()
+            req._this = mutable_machine_id
+            req._name = controller_name
+            req._controllerPort=0
+            req._device = 0
+            req._type = device_type
+            req._medium = medium_id
+
+            val = self.host.run_command('IMachine_attachDevice', req)
+
+            # Save settings and unlock
+            self._save_settings(mutable_machine_id)
+
+        finally:
+            self._unlock_machine(session_id)
+
+
+    def detach_device(self, device_type):
+
+        session_id = self._get_session_id()
+
+        controller_name = DEVICE_TO_CONTROLLER_MAP[device_type]
+
+        mutable_machine_id = self._get_mutable_machine(session_id)
+        try:
+            req = IMachine_detachDeviceRequestMsg()
+            req._this = mutable_machine_id
+            req._name = controller_name
+            req._controllerPort=0
+            req._device = 0
+            req._type = device_type
+
+            val = self.host.run_command('IMachine_detachDevice', req)
+
+            # Save settings and unlock
+            self._save_settings(mutable_machine_id)
+
+        finally:
+            self._unlock_machine(session_id)
+
+
+    def set_boot_device(self, device, position=1):
+
+        # Get mutable machine
+        session_id = self._get_session_id()
+        mutable_machine_id = self._get_mutable_machine(session_id)
 
         # Change boot order
         req = IMachine_setBootOrderRequestMsg()
@@ -141,15 +256,39 @@ class VirtualBoxVm:
         req._device = device
         val = self.host.run_command('IMachine_setBootOrder', req)
 
-        # Save settings
-        req = IMachine_saveSettingsRequestMsg()
-        req._this = mutable_machine_id
-        val = self.host.run_command('IMachine_saveSettings', req)
+        # Save settings and unlock
+        self._save_settings(mutable_machine_id)
+        self._unlock_machine(session_id)
 
-        # Unlock machine
-        req = ISession_unlockMachineRequestMsg()
-        req._this = session_id
-        val = self.host.run_command('ISession_unlockMachine', req)
+
+    def get_firmware_type(self):
+
+        session_id = self._get_session_id()
+
+        req = IMachine_getFirmwareTypeRequestMsg()
+        req._this = self.handle
+
+        val = self.host.run_command('IMachine_getFirmwareType', req)
+        return val._returnval
+
+
+    def set_firmware_type(self, firmware_type):
+
+        session_id = self._get_session_id()
+
+        mutable_machine_id = self._get_mutable_machine(session_id)
+        try:
+            req = IMachine_setFirmwareTypeRequestMsg()
+            req._this = mutable_machine_id
+            req._firmwareType = firmware_type
+
+            val = self.host.run_command('IMachine_setFirmwareType', req)
+
+            # Save settings and unlock
+            self._save_settings(mutable_machine_id)
+
+        finally:
+            self._unlock_machine(session_id)
 
 
     def start(self, vm_type="gui"):
@@ -157,11 +296,7 @@ class VirtualBoxVm:
         if self.get_power_status() == STATE_POWERED_ON:
             return
 
-        req = IWebsessionManager_getSessionObjectRequestMsg()
-        req._this = None
-        req._refIVirtualBox = self.host.handle
-        val = self.host.run_command('IWebsessionManager_getSessionObject', req)
-        session_id = val._returnval
+        session_id = self._get_session_id()
 
         req = IMachine_launchVMProcessRequestMsg()
         req._this = self.handle
@@ -173,9 +308,7 @@ class VirtualBoxVm:
         for i in range(1, 10):
             time.sleep(2)
             try:
-                req = ISession_unlockMachineRequestMsg()
-                req._this = session_id
-                val = self.host.run_command('ISession_unlockMachine', req)
+                self._unlock_machine(session_id)
                 break
             except Exception:
                 pass
@@ -189,17 +322,8 @@ class VirtualBoxVm:
         if self.get_power_status() == STATE_POWERED_OFF:
             return
 
-        req = IWebsessionManager_getSessionObjectRequestMsg()
-        req._this = None
-        req._refIVirtualBox = self.host.handle
-        val = self.host.run_command('IWebsessionManager_getSessionObject', req)
-        session_id = val._returnval
-
-        req = IMachine_lockMachineRequestMsg()
-        req._this = self.handle
-        req._session = session_id
-        req._lockType = LOCKTYPE_SHARED
-        val = self.host.run_command('IMachine_lockMachine', req)
+        session_id = self._get_session_id()
+        self._lock_machine(session_id, LOCKTYPE_SHARED)
 
         req = ISession_getConsoleRequestMsg()
         req._this = session_id
