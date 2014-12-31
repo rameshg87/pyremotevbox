@@ -24,6 +24,8 @@ from VirtualBox_client import IMachine_detachDeviceRequestMsg
 from VirtualBox_client import IVirtualBox_openMediumRequestMsg
 from VirtualBox_client import IMachine_getFirmwareTypeRequestMsg
 from VirtualBox_client import IMachine_setFirmwareTypeRequestMsg
+from VirtualBox_client import IMachine_getMediumRequestMsg
+from VirtualBox_client import IMedium_getLocationRequestMsg
 
 
 STATE_POWERED_OFF = 'PoweredOff'
@@ -111,6 +113,12 @@ class VirtualBoxHost:
         val = self.run_command('IVirtualBox_openMedium', req)
         return val._returnval
 
+    def _get_medium_location(self, medium_id):
+
+        req = IMedium_getLocationRequestMsg()
+        req._this = medium_id
+        val = self.run_command('IMedium_getLocation', req)
+        return val._returnval
 
 class VirtualBoxVm:
 
@@ -241,6 +249,28 @@ class VirtualBoxVm:
 
         finally:
             self._unlock_machine(session_id)
+
+
+    def get_attached_device(self, device_type):
+
+        session_id = self._get_session_id()
+
+        controller_name = DEVICE_TO_CONTROLLER_MAP[device_type]
+
+        req = IMachine_getMediumRequestMsg()
+        req._this = self.handle
+        req._name = controller_name
+        req._controllerPort=0
+        req._device = 0
+
+        val = None
+        try:
+            val = self.host.run_command('IMachine_getMedium', req)
+        except exception.PyRemoteVBoxException as e:
+            if 'No storage device attached' in str(e):
+                return None
+
+        return self.host._get_medium_location(val._returnval)
 
 
     def set_boot_device(self, device, position=1):
