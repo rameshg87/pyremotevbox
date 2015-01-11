@@ -1,4 +1,15 @@
-# -*- coding: utf-8 -*-
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
 
 import exception
 import time
@@ -197,6 +208,10 @@ class VirtualBoxVm:
 
     def attach_device(self, device_type, location):
 
+        if self.get_power_status() == STATE_POWERED_ON:
+            raise exception.VmInWrongPowerState(operation='attach_device',
+                                                state='powered on')
+
         try:
             self.detach_device(device_type)
         except Exception:
@@ -228,6 +243,10 @@ class VirtualBoxVm:
 
 
     def detach_device(self, device_type):
+
+        if self.get_power_status() == STATE_POWERED_ON:
+            raise exception.VmInWrongPowerState(operation='detach_device',
+                                                state='powered on')
 
         session_id = self._get_session_id()
 
@@ -275,6 +294,10 @@ class VirtualBoxVm:
 
     def set_boot_device(self, device, position=1):
 
+        if self.get_power_status() == STATE_POWERED_ON:
+            raise exception.VmInWrongPowerState(operation='set_boot_device',
+                                                state='powered on')
+
         # Get mutable machine
         session_id = self._get_session_id()
         mutable_machine_id = self._get_mutable_machine(session_id)
@@ -303,6 +326,10 @@ class VirtualBoxVm:
 
 
     def set_firmware_type(self, firmware_type):
+
+        if self.get_power_status() == STATE_POWERED_ON:
+            raise exception.VmInWrongPowerState(operation='set_firmware_type',
+                                                state='powered on')
 
         session_id = self._get_session_id()
 
@@ -363,4 +390,7 @@ class VirtualBoxVm:
         req = IConsole_powerDownRequestMsg()
         req._this = console_id
         val = self.host.run_command('IConsole_powerDown', req)
+
+        # Give a while for VirtualBox to unlock the machine.
+        time.sleep(1)
 
