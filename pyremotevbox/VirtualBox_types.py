@@ -6,10 +6,9 @@
 #
 ##################################################
 
-import ZSI
-import ZSI.TCcompound
-from ZSI.schema import LocalElementDeclaration, ElementDeclaration, TypeDefinition, GTD, GED
-from ZSI.generate.pyclass import pyclass_type
+from pyremotevbox import ZSI
+from pyremotevbox.ZSI.schema import LocalElementDeclaration, ElementDeclaration, TypeDefinition, GTD, GED
+from pyremotevbox.ZSI.generate.pyclass import pyclass_type
 
 ##############################
 # targetNamespace

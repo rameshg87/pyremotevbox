@@ -8,11 +8,10 @@
 
 from VirtualBox_types import *
 import urlparse, types
-from ZSI.TCcompound import ComplexType, Struct
-from ZSI import client
-from ZSI.schema import GED, GTD
-import ZSI
-from ZSI.generate.pyclass import pyclass_type
+from pyremotevbox.ZSI.TCcompound import ComplexType, Struct
+from pyremotevbox.ZSI import client
+from pyremotevbox.ZSI.schema import GED, GTD
+from pyremotevbox.ZSI.generate.pyclass import pyclass_type
 
 # Locator
 class vboxServiceLocator:
