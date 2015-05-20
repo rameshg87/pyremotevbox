@@ -21,7 +21,7 @@ test_requirements = [
 
 setup(
     name='pyremotevbox',
-    version='0.1.0',
+    version='0.2.0',
     description='Python API to talk to a remote VirtualBox using VirtualBox WebService',
     long_description=readme + '\n\n' + history,
     author='Ramakrishnan G',
