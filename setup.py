@@ -27,11 +27,9 @@ setup(
     author='Ramakrishnan G',
     author_email='rameshg87@gmail.com',
     url='https://github.com/rameshg87/pyremotevbox',
-    packages=[
-        'pyremotevbox',
-    ],
-    package_dir={'pyremotevbox':
-                 'pyremotevbox'},
+    packages=[ 'pyremotevbox', 'pyremotevbox.ZSI' ],
+    package_dir={'pyremotevbox': 'pyremotevbox',
+                 'pyremotevbox.ZSI': 'pyremotevbox/ZSI'},
     include_package_data=True,
     install_requires=requirements,
     license="Apache",
