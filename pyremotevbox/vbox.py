@@ -58,7 +58,8 @@ FIRMWARE_BIOS = 'BIOS'
 FIRMWARE_EFI = 'EFI'
 
 DEVICE_TO_CONTROLLER_MAP = {
-                            DEVICE_FLOPPY: 'Floppy',
+                            DEVICE_DISK: 'SATA',
+                            DEVICE_FLOPPY: 'SATA',
                             DEVICE_CDROM: 'IDE'
                            }
 
